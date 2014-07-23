@@ -1,0 +1,345 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "AWS CloudFormation Template for starting a simple Security Monkey stack backed by a PostgreSQL RDS. You will be billed for the AWS resources used if you create a stack from this template.",
+
+  "Parameters" : {
+
+    "KeyName" : {
+      "Description" : "Name of an existing EC2 KeyPair to enable SSH access to the instances",
+      "Type" : "String"
+    },
+
+    "InstanceType" : {
+      "Description" : "Security Monkey EC2 instance type",
+      "Type" : "String",
+      "Default" : "t1.small",
+      "AllowedValues" : [ "m1.small","m3.large","m1.large","m1.xlarge","m2.xlarge","m2.2xlarge","m2.4xlarge","c1.medium","c1.xlarge","cc1.4xlarge","cc2.8xlarge","cg1.4xlarge"],
+      "ConstraintDescription" : "must be a valid EC2 instance type."
+    },
+
+    "CertName" : {
+      "Description" : "Certificate name for ELB SSL provisioning",
+      "Type" : "String"
+    },
+
+    "TrustedCIDR" : {
+      "Description" : "Trusted network range for access via SSH",
+      "Type" : "String",
+      "Default" : "0.0.0.0/0"
+    },
+
+    "DBClass" : {
+      "Default" : "db.m1.small",
+      "Description" : "Database instance class",
+      "Type" : "String",
+      "AllowedValues" : [ "db.m1.small", "db.m1.large", "db.m1.xlarge", "db.m2.xlarge", "db.m2.2xlarge", "db.m2.4xlarge" ],
+      "ConstraintDescription" : "must select a valid database instance type."
+    },
+
+    "DBName" : {
+      "Default": "securitymonkey",
+      "Description" : "The postgres database name",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "64",
+      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription" : "must begin with a letter and contain only alphanumeric characters."
+    },
+
+    "DBUsername" : {
+      "Default": "postgres",
+      "NoEcho": "true",
+      "Description" : "The postgres database admin account username",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "16",
+      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription" : "must begin with a letter and contain only alphanumeric characters."
+    },
+
+    "DBPassword" : {
+      "Default": "securitymonkeypassword",
+      "NoEcho": "true",
+      "Description" : "The postgres database admin account password",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "41",
+      "AllowedPattern" : "[a-zA-Z0-9]*",
+      "ConstraintDescription" : "must contain only alphanumeric characters."
+    },
+
+    "DBAllocatedStorage" : {
+      "Default": "5",
+      "Description" : "The size of the database (Gb)",
+      "Type": "Number",
+      "MinValue": "5",
+      "MaxValue": "1024",
+      "ConstraintDescription" : "must be between 5 and 1024Gb."
+    },
+
+    "DBMultiAZ" : {
+      "Default": "true",
+      "Description" : "Whether to have a standby DB in a different AZ",
+      "Type": "Boolean"
+    }
+  },
+
+  "Mappings" : {
+    "AWSInstanceType2Arch" : {
+      "m1.small"    : { "Arch" : "64" },
+      "m1.medium"   : { "Arch" : "64" },
+      "m3.large"    : { "Arch" : "64" }
+    },
+
+    "AWSRegionArch2AMI" : {
+      "us-east-1"      : { "64" : "ami-80778be8", "64HVM" : "ami-a6926dce" },
+      "us-west-2"      : { "64" : "ami-ddaed3ed", "64HVM" : "ami-b5a9d485" },
+      "us-west-1"      : { "64" : "ami-0cbdba49", "64HVM" : "ami-c6bdba83" },
+      "eu-west-1"      : { "64" : "ami-e90dc49e", "64HVM" : "ami-bd0cc5ca" },
+      "ap-southeast-1" : { "64" : "ami-00e8b452", "64HVM" : "ami-cae8b498" },
+      "ap-northeast-1" : { "64" : "ami-67fab366", "64HVM" : "ami-97fab396" },
+      "sa-east-1"      : { "64" : "ami-13d57a0e", "64HVM" : "ami-29d57a34" }
+    }
+  },
+
+  "Resources" : {
+
+    "SecurityMonkeyInstanceRole" : {
+      "Type" : "AWS::IAM::Role",
+      "Properties":{
+        "Path":"/",
+        "AssumeRolePolicyDocument": {
+          "Statement": [ {
+            "Effect": "Allow",
+            "Principal": { "Service": [ "ec2.amazonaws.com" ] },
+            "Action": [ "sts:AssumeRole" ]
+          } ]
+        }
+      }
+    },
+
+    "SecurityMonkeyInstancePolicy" : {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "SecurityMonkeyInstancePolicy",
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": ["ses:SendEmail"],
+              "Resource": "*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": "sts:AssumeRole",
+              "Resource": "*"
+            }
+          ]
+        },
+        "Roles": [ {
+          "Ref": "SecurityMonkeyInstanceRole"
+        } ]
+      }
+    },
+
+    "SecurityMonkeyInstanceProfile" : {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Path": "/",
+        "Roles": [ {
+          "Ref": "SecurityMonkeyInstanceRole"
+        } ]
+      }
+    },
+
+    "SecurityMonkeyRole" : {
+      "Type" : "AWS::IAM::Role",
+      "Properties":{
+        "Path":"/",
+        "AssumeRolePolicyDocument": {
+          "Statement": [ {
+            "Effect": "Allow",
+            "Principal": { "AWS": {"Fn::GetAtt" : ["SecurityMonkeyInstanceProfile", "Arn"] } },
+            "Action": [ "sts:AssumeRole" ]
+          } ]
+        }
+      }
+    },
+
+    "SecurityMonkeyReadOnlyPolicy" : {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "SecurityMonkeyReadOnlyPolicy",
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "cloudwatch:Describe*",
+                "cloudwatch:Get*",
+                "cloudwatch:List*",
+                "ec2:Describe*",
+                "elasticloadbalancing:Describe*",
+                "iam:List*",
+                "iam:Get*",
+                "route53:Get*",
+                "route53:List*",
+                "rds:Describe*",
+                "s3:Get*",
+                "s3:List*",
+                "sdb:GetAttributes",
+                "sdb:List*",
+                "sdb:Select*",
+                "ses:Get*",
+                "ses:List*",
+                "sns:Get*",
+                "sns:List*",
+                "sqs:GetQueueAttributes",
+                "sqs:ListQueues",
+                "sqs:ReceiveMessage"
+              ],
+              "Resource": "*"
+            }
+          ]
+        },
+        "Roles": [ {
+          "Ref": "SecurityMonkeyRole"
+        } ]
+      }
+    },
+
+    "LoadBalancer" : {
+      "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties" : {
+        "AvailabilityZones" : { "Fn::GetAZs" : "" },
+        "Listeners" : [ {
+            "LoadBalancerPort" : "443",
+            "InstancePort" : "80",
+            "Protocol" : "HTTPS",
+            "InstanceProtocol" : "HTTP",
+            "SSLCertificateId" : { "Ref" : "CertName" }
+         } ],
+
+        "HealthCheck" : {
+            "Target" : "HTTP:80/health-check",
+            "HealthyThreshold" : "2",
+            "UnhealthyThreshold" : "5",
+            "Interval" : "30",
+            "Timeout" : "10"
+         }
+      }
+    },
+
+    "AutoscalingGroup" : {
+      "Type" : "AWS::AutoScaling::AutoScalingGroup",
+      "Properties" : {
+        "AvailabilityZones" : { "Fn::GetAZs" : "" },
+        "LaunchConfigurationName" : { "Ref" : "LaunchConfig" },
+        "MinSize" : "1",
+        "MaxSize" : "2",
+        "HealthCheckType" : "ELB",
+        "HealthCheckGracePeriod" : 600,
+        "LoadBalancerNames" : [ { "Ref": "LoadBalancer" }],
+        "Tags" : [
+          { "Key" : "Stage", "Value" : "INFRA", "PropagateAtLaunch" : "true"  },
+          { "Key" : "Stack", "Value" : "simians", "PropagateAtLaunch" : "true" },
+          { "Key" : "App", "Value" : "security-monkey", "PropagateAtLaunch" : "true" }
+        ]
+      }
+    },
+
+    "LaunchConfig" : {
+      "Type" : "AWS::AutoScaling::LaunchConfiguration",
+      "Properties" : {
+        "KeyName" : { "Ref" : "KeyName" },
+        "InstanceType" : { "Ref" : "InstanceType" },
+        "ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
+                          { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "InstanceType" }, "Arch" ] } ] },
+        "SecurityGroups": [
+            { "Ref" : "SecurityMonkeySecurityGroup" }
+        ],
+        "IamInstanceProfile": { "Ref" : "SecurityMonkeyInstanceProfile" },
+        "UserData" : { "Fn::Base64": {
+          "Fn::Join":["", [
+            "#!/bin/bash -ev\n",
+
+            "apt-get -y update\n",
+            "apt-get -y install python-pip python-dev python-psycopg2 postgresql postgresql-contrib libpq-dev nginx supervisor git\n",
+
+            "adduser --system --home /sm --disabled-password sm\n"
+
+            "git clone https://github.com/guardian/security_monkey.git /sm/security_monkey\n",
+            "cd /sm/security_monkey\n",
+            "python setup.py install\n",
+
+            "mkdir /sm/config\n",
+            "cp /sm/security_monkey/cloudformation/config-deploy.py /sm/config/\n",
+            "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config_deploy.py DBHOST ",
+              {"Fn::GetAtt" : ["DBInstance", "Endpoint.Address"]}, "\n",
+            "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config_deploy.py DBNAME ", {"Ref" : "DBName"}, "\n",
+
+            "cp /sm/security_monkey/cloudformation/security_monkey.ini /sm/config/\n",
+
+            "export SECURITY_MONKEY_SETTINGS=/sm/config/config-deploy.py\n",
+            "su sm 'python /sm/security_monkey/manage.py db upgrade'\n",
+
+            "mkdir /sm/logs\n",
+
+            "mkdir -p /var/log/nginx/log\n",
+            "touch /var/log/nginx/log/securitymonkey.access.log\n",
+            "touch /var/log/nginx/log/securitymonkey.error.log\n",
+            "cp /sm/security_monkey/cloudformation/securitymonkey.conf /etc/nginx/sites-available/\n",
+            "ln -s /etc/nginx/sites-available/securitymonkey.conf /etc/nginx/sites-enabled/\n",
+            "rm /etc/nginx/sites-enabled/default\n",
+            "service nginx restart\n"
+
+            ]]
+        }}
+    },
+
+    "DBInstance" : {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "DBName"            : { "Ref" : "DBName" },
+        "Engine"            : "postgres",
+        "MasterUsername"    : { "Ref" : "DBUsername" },
+        "DBInstanceClass"   : { "Ref" : "DBClass" },
+        "DBSecurityGroups"  : [{ "Ref" : "DBSecurityGroup" }],
+        "AllocatedStorage"  : { "Ref" : "DBAllocatedStorage" },
+        "MasterUserPassword": { "Ref" : "DBPassword" },
+        "MultiAZ"           : true,
+        "EngineVersion"     : "9.3.3"
+      }
+    },
+
+    "DBSecurityGroup": {
+      "Type": "AWS::RDS::DBSecurityGroup",
+      "Properties": {
+        "DBSecurityGroupIngress": { "EC2SecurityGroupName": { "Ref": "SecurityMonkeySecurityGroup"} },
+        "GroupDescription"      : "Frontend Access"
+      }
+    },
+
+    "SecurityMonkeySecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable HTTP access via HTTPS and SSH",
+        "SecurityGroupIngress" : [
+          {"IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80",
+            "SourceSecurityGroupName": "amazon-elb-sg", "SourceSecurityGroupOwnerId": "amazon-elb" },
+          {"IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : { "Ref" : "TrustedCIDR" } }
+        ]
+      }
+    }
+  },
+
+  "Outputs" : {
+    "WebsiteURL" : {
+      "Value" : { "Fn::Join" : ["", ["https://", { "Fn::GetAtt" : [ "LoadBalancer", "PublicDnsName" ]} ]] },
+      "Description" : "Security Monkey URL"
+    }
+  }
+}
