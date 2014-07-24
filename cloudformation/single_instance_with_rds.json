@@ -240,7 +240,7 @@
          } ],
 
         "HealthCheck" : {
-            "Target" : "HTTP:80/health-check",
+            "Target" : "HTTP:80/",
             "HealthyThreshold" : "2",
             "UnhealthyThreshold" : "5",
             "Interval" : "30",
@@ -287,7 +287,7 @@
 
             "adduser --system --home /sm --disabled-password sm\n",
 
-            "git clone ", {"Ref":"SecurityMokeyGitRepo"}, " /sm/security_monkey\n",
+            "git clone ", {"Ref":"SecurityMonkeyGitRepo"}, " /sm/security_monkey\n",
             "cd /sm/security_monkey\n",
             "python setup.py install\n",
 
@@ -307,12 +307,13 @@
 
             "export SECURITY_MONKEY_SETTINGS=/sm/config/config-deploy.py\n",
             "mkdir /sm/logs\n",
+            "chown sm /sm/logs\n",
 
             "cd /sm/security_monkey\n",
-            "su sm 'python /sm/security_monkey/manage.py db upgrade'\n",
+            "su -s /bin/bash -c 'python /sm/security_monkey/manage.py db upgrade' sm\n",
 
             "cp /sm/security_monkey/cloudformation/security_monkey.conf /etc/supervisor/conf.d/\n",
-            "service supervisor restart"
+            "service supervisor restart\n",
 
             "mkdir -p /var/log/nginx/log\n",
             "touch /var/log/nginx/log/securitymonkey.access.log\n",
