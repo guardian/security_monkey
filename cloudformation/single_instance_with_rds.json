@@ -305,13 +305,14 @@
             "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config-deploy.py SECRET ", {"Ref" : "FlaskSecret"}, "\n",
             "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config-deploy.py SALT ", {"Ref" : "FlaskSalt"}, "\n",
 
-            "cp /sm/security_monkey/cloudformation/security_monkey.ini /sm/config/\n",
-
             "export SECURITY_MONKEY_SETTINGS=/sm/config/config-deploy.py\n",
+            "mkdir /sm/logs\n",
+
             "cd /sm/security_monkey\n",
             "su sm 'python /sm/security_monkey/manage.py db upgrade'\n",
 
-            "mkdir /sm/logs\n",
+            "cp /sm/security_monkey/cloudformation/security_monkey.conf /etc/supervisor/conf.d/\n",
+            "service supervisor restart"
 
             "mkdir -p /var/log/nginx/log\n",
             "touch /var/log/nginx/log/securitymonkey.access.log\n",
