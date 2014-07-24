@@ -92,6 +92,12 @@
     "FlaskSalt" : {
       "Description" : "Used by Flask modules to salt credentials. Please use your own random string. Must remain consistent across instances.",
       "Type" : "String"
+    },
+
+    "SecurityMonkeyGitRepo" : {
+      "Description" : "The git repository URI to clone and deploy",
+      "Default" : "https://github.com/guardian/security_monkey.git",
+      "Type" : "String"
     }
   },
 
@@ -281,7 +287,7 @@
 
             "adduser --system --home /sm --disabled-password sm\n",
 
-            "git clone https://github.com/guardian/security_monkey.git /sm/security_monkey\n",
+            "git clone ", {"Ref":"SecurityMokeyGitRepo"}, " /sm/security_monkey\n",
             "cd /sm/security_monkey\n",
             "python setup.py install\n",
 
