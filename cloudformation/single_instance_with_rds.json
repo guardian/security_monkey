@@ -287,7 +287,8 @@
 
             "mkdir /sm/config\n",
             "cp /sm/security_monkey/cloudformation/config-deploy.py /sm/config/\n",
-            "chmod +x /sm/security_monkey/cloudformation/do_subst.sh",
+            "chmod +x /sm/security_monkey/cloudformation/do_subst.sh\n",
+
             "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config-deploy.py DBUSER ", {"Ref" : "DBUsername"}, "\n",
             "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config-deploy.py DBPASSWORD ", {"Ref" : "DBPassword"}, "\n",
             "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config-deploy.py DBHOST ",
@@ -301,6 +302,7 @@
             "cp /sm/security_monkey/cloudformation/security_monkey.ini /sm/config/\n",
 
             "export SECURITY_MONKEY_SETTINGS=/sm/config/config-deploy.py\n",
+            "cd /sm/security_monkey\n",
             "su sm 'python /sm/security_monkey/manage.py db upgrade'\n",
 
             "mkdir /sm/logs\n",
