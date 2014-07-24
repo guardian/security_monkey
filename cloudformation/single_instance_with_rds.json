@@ -86,11 +86,13 @@
 
     "FlaskSecret" : {
       "Description" : "Used by Flask modules to verify user sessions. Please use your own random string. Must remain consistent across instances.",
+      "NoEcho": "true",
       "Type" : "String"
     },
 
     "FlaskSalt" : {
       "Description" : "Used by Flask modules to salt credentials. Please use your own random string. Must remain consistent across instances.",
+      "NoEcho": "true",
       "Type" : "String"
     },
 
@@ -170,63 +172,6 @@
       }
     },
 
-    "SecurityMonkeyRole" : {
-      "Type" : "AWS::IAM::Role",
-      "Properties":{
-        "Path":"/",
-        "AssumeRolePolicyDocument": {
-          "Statement": [ {
-            "Effect": "Allow",
-            "Principal": { "AWS": [ {"Fn::GetAtt" : ["SecurityMonkeyInstanceRole", "Arn"] } ] },
-            "Action": [ "sts:AssumeRole" ]
-          } ]
-        }
-      }
-    },
-
-    "SecurityMonkeyReadOnlyPolicy" : {
-      "Type": "AWS::IAM::Policy",
-      "Properties": {
-        "PolicyName": "SecurityMonkeyReadOnlyPolicy",
-        "PolicyDocument": {
-          "Version" : "2012-10-17",
-          "Statement": [
-            {
-              "Effect": "Allow",
-              "Action": [
-                "cloudwatch:Describe*",
-                "cloudwatch:Get*",
-                "cloudwatch:List*",
-                "ec2:Describe*",
-                "elasticloadbalancing:Describe*",
-                "iam:List*",
-                "iam:Get*",
-                "route53:Get*",
-                "route53:List*",
-                "rds:Describe*",
-                "s3:Get*",
-                "s3:List*",
-                "sdb:GetAttributes",
-                "sdb:List*",
-                "sdb:Select*",
-                "ses:Get*",
-                "ses:List*",
-                "sns:Get*",
-                "sns:List*",
-                "sqs:GetQueueAttributes",
-                "sqs:ListQueues",
-                "sqs:ReceiveMessage"
-              ],
-              "Resource": "*"
-            }
-          ]
-        },
-        "Roles": [ {
-          "Ref": "SecurityMonkeyRole"
-        } ]
-      }
-    },
-
     "LoadBalancer" : {
       "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
       "Properties" : {
@@ -283,7 +228,7 @@
             "#!/bin/bash -ev\n",
 
             "apt-get -y update\n",
-            "apt-get -y install python-pip python-dev python-psycopg2 postgresql postgresql-contrib libpq-dev nginx supervisor git\n",
+            "apt-get -y install python-pip python-dev python-psycopg2 libpq-dev nginx supervisor git\n",
 
             "adduser --system --home /sm --disabled-password sm\n",
 
