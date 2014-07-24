@@ -13,13 +13,13 @@
     "InstanceType" : {
       "Description" : "Security Monkey EC2 instance type",
       "Type" : "String",
-      "Default" : "t1.small",
+      "Default" : "m1.small",
       "AllowedValues" : [ "m1.small","m3.large","m1.large","m1.xlarge","m2.xlarge","m2.2xlarge","m2.4xlarge","c1.medium","c1.xlarge","cc1.4xlarge","cc2.8xlarge","cg1.4xlarge"],
       "ConstraintDescription" : "must be a valid EC2 instance type."
     },
 
-    "CertName" : {
-      "Description" : "Certificate name for ELB SSL provisioning",
+    "CertArn" : {
+      "Description" : "Certificate ARN for ELB SSL provisioning",
       "Type" : "String"
     },
 
@@ -81,7 +81,17 @@
     "DBMultiAZ" : {
       "Default": "true",
       "Description" : "Whether to have a standby DB in a different AZ",
-      "Type": "Boolean"
+      "Type": "String"
+    },
+
+    "FlaskSecret" : {
+      "Description" : "Used by Flask modules to verify user sessions. Please use your own random string. Must remain consistent across instances.",
+      "Type" : "String"
+    },
+
+    "FlaskSalt" : {
+      "Description" : "Used by Flask modules to salt credentials. Please use your own random string. Must remain consistent across instances.",
+      "Type" : "String"
     }
   },
 
@@ -161,7 +171,7 @@
         "AssumeRolePolicyDocument": {
           "Statement": [ {
             "Effect": "Allow",
-            "Principal": { "AWS": {"Fn::GetAtt" : ["SecurityMonkeyInstanceProfile", "Arn"] } },
+            "Principal": { "AWS": [ {"Fn::GetAtt" : ["SecurityMonkeyInstanceRole", "Arn"] } ] },
             "Action": [ "sts:AssumeRole" ]
           } ]
         }
@@ -220,7 +230,7 @@
             "InstancePort" : "80",
             "Protocol" : "HTTPS",
             "InstanceProtocol" : "HTTP",
-            "SSLCertificateId" : { "Ref" : "CertName" }
+            "SSLCertificateId" : { "Ref" : "CertArn" }
          } ],
 
         "HealthCheck" : {
@@ -269,7 +279,7 @@
             "apt-get -y update\n",
             "apt-get -y install python-pip python-dev python-psycopg2 postgresql postgresql-contrib libpq-dev nginx supervisor git\n",
 
-            "adduser --system --home /sm --disabled-password sm\n"
+            "adduser --system --home /sm --disabled-password sm\n",
 
             "git clone https://github.com/guardian/security_monkey.git /sm/security_monkey\n",
             "cd /sm/security_monkey\n",
@@ -277,9 +287,16 @@
 
             "mkdir /sm/config\n",
             "cp /sm/security_monkey/cloudformation/config-deploy.py /sm/config/\n",
-            "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config_deploy.py DBHOST ",
+            "chmod +x /sm/security_monkey/cloudformation/do_subst.sh",
+            "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config-deploy.py DBUSER ", {"Ref" : "DBUsername"}, "\n",
+            "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config-deploy.py DBPASSWORD ", {"Ref" : "DBPassword"}, "\n",
+            "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config-deploy.py DBHOST ",
               {"Fn::GetAtt" : ["DBInstance", "Endpoint.Address"]}, "\n",
-            "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config_deploy.py DBNAME ", {"Ref" : "DBName"}, "\n",
+            "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config-deploy.py DBNAME ", {"Ref" : "DBName"}, "\n",
+            "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config-deploy.py FQDN ",
+              { "Fn::GetAtt" : [ "LoadBalancer", "DNSName" ]}, "\n",
+            "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config-deploy.py SECRET ", {"Ref" : "FlaskSecret"}, "\n",
+            "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config-deploy.py SALT ", {"Ref" : "FlaskSalt"}, "\n",
 
             "cp /sm/security_monkey/cloudformation/security_monkey.ini /sm/config/\n",
 
@@ -298,6 +315,7 @@
 
             ]]
         }}
+      }
     },
 
     "DBInstance" : {
@@ -338,7 +356,7 @@
 
   "Outputs" : {
     "WebsiteURL" : {
-      "Value" : { "Fn::Join" : ["", ["https://", { "Fn::GetAtt" : [ "LoadBalancer", "PublicDnsName" ]} ]] },
+      "Value" : { "Fn::Join" : ["", ["https://", { "Fn::GetAtt" : [ "LoadBalancer", "DNSName" ]} ]] },
       "Description" : "Security Monkey URL"
     }
   }
