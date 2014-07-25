@@ -264,6 +264,7 @@
             "touch /var/log/nginx/log/securitymonkey.access.log\n",
             "touch /var/log/nginx/log/securitymonkey.error.log\n",
             "cp /sm/security_monkey/cloudformation/securitymonkey.conf /etc/nginx/sites-available/\n",
+            "/sm/security_monkey/cloudformation/do_subst.sh /etc/nginx/sites-available/securitymonkey.conf TrustedCIDR ", {"Ref" : "TrustedCIDR"}, "\n",
             "ln -s /etc/nginx/sites-available/securitymonkey.conf /etc/nginx/sites-enabled/\n",
             "rm /etc/nginx/sites-enabled/default\n",
             "service nginx restart\n"
