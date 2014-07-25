@@ -10,4 +10,4 @@ FILE=$1
 KEY=$2
 VALUE=$3
 
-sed -i "s/{${KEY}}/${VALUE}/g" ${FILE}
+sed -i "s|{${KEY}}|${VALUE}|g" ${FILE}
