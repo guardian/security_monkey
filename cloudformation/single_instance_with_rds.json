@@ -23,6 +23,11 @@
       "Type" : "String"
     },
 
+    "OverrideFQDN" : {
+      "Type" : "String",
+      "Description" : "Specify the FQDN of the application (should match your SSL cert). If not specified then the FQDN of the ELB will be used."
+    },
+
     "TrustedCIDR" : {
       "Description" : "Trusted network range for access via SSH",
       "Type" : "String",
@@ -119,6 +124,10 @@
       "ap-northeast-1" : { "64" : "ami-d9134ed8", "64HVM" : "ami-a1124fa0" },
       "sa-east-1"      : { "64" : "ami-a3a30abe", "64HVM" : "ami-d5a30ac8" }
     }
+  },
+
+  "Conditions" : {
+    "UseLoadBalancerFQDN" : {"Fn::Equals":[{"Ref":"FQDN"}, ""]}
   },
 
   "Resources" : {
@@ -246,6 +255,11 @@
               {"Fn::GetAtt" : ["DBInstance", "Endpoint.Address"]}, "\n",
             "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config-deploy.py DBNAME ", {"Ref" : "DBName"}, "\n",
             "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config-deploy.py FQDN ",
+              { "Fn::If" : [
+                "UseLoadBalancerFQDN",
+                { "Fn::GetAtt" : [ "LoadBalancer", "DNSName" ]},
+                { "Ref" : "FQDN" }
+              ] }, "\n",
               { "Fn::GetAtt" : [ "LoadBalancer", "DNSName" ]}, "\n",
             "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config-deploy.py SECRET ", {"Ref" : "FlaskSecret"}, "\n",
             "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config-deploy.py SALT ", {"Ref" : "FlaskSalt"}, "\n",
