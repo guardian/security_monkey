@@ -127,7 +127,7 @@
   },
 
   "Conditions" : {
-    "UseLoadBalancerFQDN" : {"Fn::Equals":[{"Ref":"FQDN"}, ""]}
+    "UseLoadBalancerFQDN" : {"Fn::Equals":[{"Ref":"OverrideFQDN"}, ""]}
   },
 
   "Resources" : {
@@ -258,9 +258,8 @@
               { "Fn::If" : [
                 "UseLoadBalancerFQDN",
                 { "Fn::GetAtt" : [ "LoadBalancer", "DNSName" ]},
-                { "Ref" : "FQDN" }
+                { "Ref" : "OverrideFQDN" }
               ] }, "\n",
-              { "Fn::GetAtt" : [ "LoadBalancer", "DNSName" ]}, "\n",
             "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config-deploy.py SECRET ", {"Ref" : "FlaskSecret"}, "\n",
             "/sm/security_monkey/cloudformation/do_subst.sh /sm/config/config-deploy.py SALT ", {"Ref" : "FlaskSalt"}, "\n",
 
