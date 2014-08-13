@@ -61,7 +61,9 @@ class SecurityGroup(Watcher):
 
         try:
           rec2 = connect(account, 'ec2', region=region)
-          sgs = rec2.get_all_security_groups()
+          sgs = self.wrap_aws_rate_limited_call(
+            rec2.get_all_security_groups
+          )
         except Exception as e:
           if region.name not in TROUBLE_REGIONS:
             exc = BotoConnectionIssue(str(e), self.index, account, region.name)
@@ -104,7 +106,14 @@ class SecurityGroup(Watcher):
               item_config['rules'].append(rule_config)
           item_config['rules'] = sorted(item_config['rules'])
 
-          item = SecurityGroupItem(region=region.name, account=account, name=sg.name, config=item_config)
+          # Issue 40: Security Groups can have a name collision between EC2 and
+          # VPC or between different VPCs within a given region.
+          if sg.vpc_id:
+              sg_name = "{0} ({1} in {2})".format(sg.name, sg.id, sg.vpc_id)
+          else:
+              sg_name = "{0} ({1})".format(sg.name, sg.id)
+
+          item = SecurityGroupItem(region=region.name, account=account, name=sg_name, config=item_config)
           item_list.append(item)
 
     return item_list, exception_map
@@ -118,4 +127,3 @@ class SecurityGroupItem(ChangeItem):
       account=account,
       name=name,
       new_config=config)
-
